@@ -171,6 +171,14 @@ DEFINE_UNARY_REAL_FUNC(asin)
 DEFINE_UNARY_REAL_FUNC(cos)
 DEFINE_UNARY_REAL_FUNC(sin)
 
+i8 abs_i8(i8 a) {
+  return a >= 0 ? a : -a;
+}
+
+i16 abs_i16(i16 a) {
+  return a >= 0 ? a : -a;
+}
+
 i32 abs_i32(i32 a) {
   return a >= 0 ? a : -a;
 }
@@ -179,11 +187,19 @@ i64 abs_i64(i64 a) {
   return a >= 0 ? a : -a;
 }
 
-u16 min_u16(u16 a, u16 b) {
+u8 min_u8(u8 a, u8 b) {
+  return a < b ? a : b;
+}
+
+i8 min_i8(i8 a, i8 b) {
   return a < b ? a : b;
 }
 
 i16 min_i16(i16 a, i16 b) {
+  return a < b ? a : b;
+}
+
+u16 min_u16(u16 a, u16 b) {
   return a < b ? a : b;
 }
 
@@ -203,6 +219,14 @@ i64 min_i64(i64 a, i64 b) {
   return a < b ? a : b;
 }
 
+u8 max_u8(u8 a, u8 b) {
+  return a > b ? a : b;
+}
+
+i8 max_i8(i8 a, i8 b) {
+  return a > b ? a : b;
+}
+
 u16 max_u16(u16 a, u16 b) {
   return a > b ? a : b;
 }
@@ -215,7 +239,7 @@ u32 max_u32(u32 a, u32 b) {
   return a > b ? a : b;
 }
 
-int max_i32(i32 a, i32 b) {
+i32 max_i32(i32 a, i32 b) {
   return a > b ? a : b;
 }
 

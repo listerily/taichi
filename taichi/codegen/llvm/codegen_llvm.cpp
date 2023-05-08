@@ -175,33 +175,47 @@ void TaskCodeGenLLVM::emit_extra_unary(UnaryOpStmt *stmt) {
   auto op = stmt->op_type;
   auto input_type = input->getType();
 
-#define UNARY_STD(x)                                                    \
+#define UNARY_REAL(x)                                                   \
   else if (op == UnaryOpType::x) {                                      \
     if (input_taichi_type->is_primitive(PrimitiveTypeID::f32)) {        \
       llvm_val[stmt] = call(#x "_f32", input);                          \
     } else if (input_taichi_type->is_primitive(PrimitiveTypeID::f64)) { \
       llvm_val[stmt] = call(#x "_f64", input);                          \
+    } else {                                                            \
+      TI_NOT_IMPLEMENTED                                                \
+    }                                                                   \
+  }
+
+#define UNARY_REAL_SIGNED(x)                                            \
+  else if (op == UnaryOpType::x) {                                      \
+    if (input_taichi_type->is_primitive(PrimitiveTypeID::f32)) {        \
+      llvm_val[stmt] = call(#x "_f32", input);                          \
+    } else if (input_taichi_type->is_primitive(PrimitiveTypeID::f64)) { \
+      llvm_val[stmt] = call(#x "_f64", input);                          \
+    } else if (input_taichi_type->is_primitive(PrimitiveTypeID::i8))  { \
+      llvm_val[stmt] = call(#x "_i8", input);                           \
+    } else if (input_taichi_type->is_primitive(PrimitiveTypeID::i16)) { \
+      llvm_val[stmt] = call(#x "_i16", input);                          \
     } else if (input_taichi_type->is_primitive(PrimitiveTypeID::i32)) { \
       llvm_val[stmt] = call(#x "_i32", input);                          \
     } else if (input_taichi_type->is_primitive(PrimitiveTypeID::i64)) { \
       llvm_val[stmt] = call(#x "_i64", input);                          \
-    } else {                                                            \
+    }else {                                                            \
       TI_NOT_IMPLEMENTED                                                \
     }                                                                   \
   }
   if (false) {
   }
-  UNARY_STD(abs)
-  UNARY_STD(exp)
-  UNARY_STD(log)
-  UNARY_STD(tan)
-  UNARY_STD(tanh)
-  UNARY_STD(sgn)
-  UNARY_STD(logic_not)
-  UNARY_STD(acos)
-  UNARY_STD(asin)
-  UNARY_STD(cos)
-  UNARY_STD(sin)
+  UNARY_REAL(exp)
+  UNARY_REAL(log)
+  UNARY_REAL(tan)
+  UNARY_REAL(tanh)
+  UNARY_REAL(acos)
+  UNARY_REAL(asin)
+  UNARY_REAL(cos)
+  UNARY_REAL(sin)
+  UNARY_REAL(sgn)
+  UNARY_REAL_SIGNED(abs)
   else if (op == UnaryOpType::sqrt) {
     llvm_val[stmt] =
         builder->CreateIntrinsic(llvm::Intrinsic::sqrt, {input_type}, {input});
@@ -214,7 +228,8 @@ void TaskCodeGenLLVM::emit_extra_unary(UnaryOpStmt *stmt) {
     TI_P(unary_op_type_name(op));
     TI_NOT_IMPLEMENTED
   }
-#undef UNARY_STD
+#undef UNARY_REAL
+#undef UNARY_REAL_SIGNED
   if (stmt->ret_type->is_primitive(PrimitiveTypeID::f16)) {
     // Convert back to f16
     llvm_val[stmt] = builder->CreateFPTrunc(
@@ -661,6 +676,8 @@ void TaskCodeGenLLVM::visit(BinaryOpStmt *stmt) {
       llvm_val[stmt] =
           builder->CreateMaxNum(llvm_val[stmt->lhs], llvm_val[stmt->rhs]);
     }
+    BINARYOP_MAX(u8)
+    BINARYOP_MAX(i8)
     BINARYOP_MAX(u16)
     BINARYOP_MAX(i16)
     BINARYOP_MAX(u32)
@@ -698,6 +715,8 @@ void TaskCodeGenLLVM::visit(BinaryOpStmt *stmt) {
       llvm_val[stmt] =
           builder->CreateMinNum(llvm_val[stmt->lhs], llvm_val[stmt->rhs]);
     }
+    BINARYOP_MIN(u8)
+    BINARYOP_MIN(i8)
     BINARYOP_MIN(u16)
     BINARYOP_MIN(i16)
     BINARYOP_MIN(u32)
