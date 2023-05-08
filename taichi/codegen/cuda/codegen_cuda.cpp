@@ -239,6 +239,11 @@ class TaskCodeGenCUDA : public TaskCodeGenLLVM {
         llvm_val[stmt] = call("__nv_abs", input);
       } else if (input_taichi_type->is_primitive(PrimitiveTypeID::i64)) {
         llvm_val[stmt] = call("__nv_llabs", input);
+      } else if (is_signed(input_taichi_type)) {
+        auto sign = builder->CreateICmpSLT(input,builder->CreateZExtOrTrunc(tlctx->get_constant(0), input->getType()));
+        llvm_val[stmt] = builder->CreateSelect(
+            sign,
+            builder->CreateNeg(input), input);
       } else {
         TI_NOT_IMPLEMENTED
       }
