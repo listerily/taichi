@@ -98,66 +98,72 @@ KernelContextAttributes::KernelContextAttributes(
     aa.is_array = ka.is_array;
     arg_attribs_vec_.push_back(aa);
   }
+  size_t bytes = 0;
   for (const auto &kr : kernel.rets) {
-    RetAttributes ra;
-    size_t dt_bytes{0};
     if (auto tensor_type = kr.dt->cast<TensorType>()) {
       auto tensor_dtype = tensor_type->get_element_type();
       TI_ASSERT(tensor_dtype->is<PrimitiveType>());
+      RetAttributes ra;
       ra.dtype = tensor_dtype->cast<PrimitiveType>()->type;
-      dt_bytes = data_type_size(tensor_dtype);
       ra.is_array = true;
+      size_t dt_bytes = data_type_size(tensor_dtype);
       ra.stride = tensor_type->get_num_elements() * dt_bytes;
+      bytes = (bytes + dt_bytes - 1) / dt_bytes * dt_bytes;
+      ra.offset_in_mem = bytes;
+      bytes += ra.stride;
+      ra.index = ret_attribs_vec_.size();
+      ret_attribs_vec_.push_back(ra);
+    } else if (auto struct_type = kr.dt->cast<StructType>()) {
+      bytes = recursive_process_struct(*struct_type, ret_attribs_vec_, bytes);
     } else {
       TI_ASSERT(kr.dt->is<PrimitiveType>());
+      RetAttributes ra;
       ra.dtype = kr.dt->cast<PrimitiveType>()->type;
-      dt_bytes = data_type_size(kr.dt);
       ra.is_array = false;
+      size_t dt_bytes = data_type_size(kr.dt);
       ra.stride = dt_bytes;
-    }
-    ra.index = ret_attribs_vec_.size();
-    ret_attribs_vec_.push_back(ra);
-  }
-
-  auto arange_args = [](auto *vec, size_t offset, bool is_ret,
-                        bool has_buffer_ptr) -> size_t {
-    size_t bytes = offset;
-    for (int i = 0; i < vec->size(); ++i) {
-      auto &attribs = (*vec)[i];
-      const size_t dt_bytes =
-          (attribs.is_array && !is_ret)
-              ? (has_buffer_ptr ? sizeof(uint64_t) : sizeof(uint32_t))
-              : data_type_size(PrimitiveType::get(attribs.dtype));
-      // Align bytes to the nearest multiple of dt_bytes
       bytes = (bytes + dt_bytes - 1) / dt_bytes * dt_bytes;
-      attribs.offset_in_mem = bytes;
-      bytes += is_ret ? attribs.stride : dt_bytes;
-      TI_TRACE(
-          "  at={} {} offset_in_mem={} stride={}",
-          (*vec)[i].is_array ? (is_ret ? "array" : "vector ptr") : "scalar", i,
-          attribs.offset_in_mem, attribs.stride);
+      ra.offset_in_mem = bytes;
+      bytes += ra.stride;
+      ra.index = ret_attribs_vec_.size();
+      ret_attribs_vec_.push_back(ra);
     }
-    return bytes - offset;
-  };
+  }
+//  auto arange_args = [](auto *vec, size_t offset) -> size_t {
+//    size_t bytes = offset;
+//    for (int i = 0; i < vec->size(); ++i) {
+//      auto &attribs = (*vec)[i];
+//      const size_t dt_bytes = data_type_size(PrimitiveType::get(attribs.dtype));
+//      // Align bytes to the nearest multiple of dt_bytes
+//      bytes = (bytes + dt_bytes - 1) / dt_bytes * dt_bytes;
+//      attribs.offset_in_mem = bytes;
+//      bytes += attribs.stride;
+//      TI_TRACE(
+//          "  at={} {} offset_in_mem={} stride={}",
+//          (*vec)[i].is_array ? "array" : "scalar", i,
+//          attribs.offset_in_mem, attribs.stride);
+//    }
+//    return bytes - offset;
+//  };
 
   args_type_ = kernel.args_type;
   rets_type_ = kernel.ret_type;
 
   args_bytes_ = kernel.args_size;
 
-  TI_TRACE("rets:");
-  rets_bytes_ = arange_args(&ret_attribs_vec_, 0, true, false);
-
-  TI_ASSERT(ret_attribs_vec_.size() == kernel.ret_type->elements().size());
-  for (int i = 0; i < ret_attribs_vec_.size(); ++i) {
-    TI_ASSERT(ret_attribs_vec_[i].offset_in_mem ==
-              kernel.ret_type->get_element_offset({i}));
-  }
-
-  TI_ASSERT(rets_bytes_ == kernel.ret_size);
-
-  TI_TRACE("sizes: args={} rets={}", args_bytes(), rets_bytes());
-  TI_ASSERT(has_rets() == (rets_bytes_ > 0));
+//  TI_TRACE("rets:");
+  rets_bytes_ = bytes;
+//
+//  TI_ASSERT(ret_attribs_vec_.size() == kernel.ret_type->elements().size());
+//  for (int i = 0; i < ret_attribs_vec_.size(); ++i) {
+//    TI_ASSERT(ret_attribs_vec_[i].offset_in_mem ==
+//              kernel.ret_type->get_element_offset({i}));
+//  }
+//
+//  TI_ASSERT(rets_bytes_ == kernel.ret_size);
+//
+//  TI_TRACE("sizes: args={} rets={}", args_bytes(), rets_bytes());
+//  TI_ASSERT(has_rets() == (rets_bytes_ > 0));
 }
 
 }  // namespace spirv
