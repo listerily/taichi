@@ -47,6 +47,43 @@ std::string TaskAttributes::BufferBind::debug_string() const {
                      TaskAttributes::buffers_name(buffer), binding);
 }
 
+size_t KernelContextAttributes::recursive_process_struct(
+    const StructType& struct_type,
+    std::vector<RetAttributes>& ret_attributes,
+    size_t bytes) {
+  for (const auto& member : struct_type.elements()) {
+    if (auto* struct_type_ = member.type->cast<StructType>()) {
+      bytes = recursive_process_struct(*struct_type_, ret_attributes, bytes);
+    } else if (auto tensor_type = member.type->cast<TensorType>()) {
+      auto tensor_dtype = tensor_type->get_element_type();
+      TI_ASSERT(tensor_dtype->is<PrimitiveType>());
+      RetAttributes ra;
+      ra.dtype = tensor_dtype->cast<PrimitiveType>()->type;
+      ra.is_array = true;
+      size_t dt_bytes = data_type_size(tensor_dtype);
+      ra.stride = tensor_type->get_num_elements() * dt_bytes;
+      bytes = (bytes + dt_bytes - 1) / dt_bytes * dt_bytes;
+      ra.offset_in_mem = bytes;
+      bytes += ra.stride;
+      ra.index = ret_attributes.size();
+      ret_attributes.push_back(ra);
+    } else {
+      TI_ASSERT(member.type->is<PrimitiveType>());
+      RetAttributes ra;
+      ra.dtype = member.type->cast<PrimitiveType>()->type;
+      ra.is_array = false;
+      size_t dt_bytes = data_type_size(member.type->cast<PrimitiveType>());
+      ra.stride = dt_bytes;
+      bytes = (bytes + dt_bytes - 1) / dt_bytes * dt_bytes;
+      ra.offset_in_mem = bytes;
+      bytes += ra.stride;
+      ra.index = ret_attributes.size();
+      ret_attributes.push_back(ra);
+    }
+  }
+  return bytes;
+}
+
 KernelContextAttributes::KernelContextAttributes(
     const Kernel &kernel,
     const DeviceCapabilityConfig *caps)

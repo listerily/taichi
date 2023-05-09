@@ -262,6 +262,10 @@ class KernelContextAttributes {
 
   const lang::StructType *args_type_{nullptr};
   const lang::StructType *rets_type_{nullptr};
+
+  static size_t recursive_process_struct(
+      const StructType& struct_type,
+      std::vector<RetAttributes>& ret_attributes, size_t bytes);
 };
 
 /**

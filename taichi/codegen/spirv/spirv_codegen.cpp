@@ -606,18 +606,38 @@ class TaskCodegen : public IRVisitor {
   }
 
   void visit(ReturnStmt *stmt) override {
-    // Now we only support one ret
-    auto dt = stmt->element_types()[0];
-    for (int i = 0; i < stmt->values.size(); i++) {
-      spirv::Value buffer_val = ir_->make_value(
-          spv::OpAccessChain,
-          ir_->get_storage_pointer_type(ir_->get_primitive_type(dt)),
-          get_buffer_value(BufferType::Rets, dt),
-          ir_->int_immediate_number(ir_->i32_type(), 0),
-          ir_->int_immediate_number(ir_->i32_type(), i));
+    auto buffer_value = get_buffer_value(BufferType::Rets, PrimitiveType::i32);
+    for (int i = 0, j = 0, k = 0; i < stmt->values.size(); i++) {
+
+      auto dt = stmt->element_types()[i];
+      spirv::Value buffer_val;
+      if (ctx_attribs_->rets()[j].is_array)
+        buffer_val = ir_->make_value(
+            spv::OpAccessChain,
+            ir_->get_storage_pointer_type(ir_->get_primitive_type(dt)),
+            buffer_value,
+            ir_->int_immediate_number(ir_->i32_type(), j),
+            ir_->int_immediate_number(ir_->i32_type(), k));
+      else
+        buffer_val = ir_->make_value(
+            spv::OpAccessChain,
+            ir_->get_storage_pointer_type(ir_->get_primitive_type(dt)),
+            buffer_value,
+            ir_->int_immediate_number(ir_->i32_type(), j));
       buffer_val.flag = ValueKind::kVariablePtr;
       spirv::Value val = ir_->query_value(stmt->values[i]->raw_name());
       ir_->store_variable(buffer_val, val);
+
+      TI_INFO("i = {}, j = {}, k = {}.", i, j, k);
+      TI_ASSERT(ctx_attribs_->has_rets());
+      if (ctx_attribs_->rets()[j].is_array
+          && k + 1 < ctx_attribs_->rets()[j].stride / data_type_size(PrimitiveType::get(ctx_attribs_->rets()[j].dtype))) {
+        k++;
+      } else {
+        j++;
+        k = 0;
+      }
+      TI_INFO("i = {}, j = {}, k = {}.", i, j, k);
     }
   }
 
@@ -2266,20 +2286,16 @@ class TaskCodegen : public IRVisitor {
 
     std::vector<std::tuple<spirv::SType, std::string, size_t>>
         struct_components_;
-    // Now we only have one ret
-    TI_ASSERT(ctx_attribs_->rets().size() == 1);
     for (auto &ret : ctx_attribs_->rets()) {
-      // Use array size = 0 to generate a RuntimeArray
-      if (auto tensor_type =
-              PrimitiveType::get(ret.dtype)->cast<TensorType>()) {
+      if (ret.is_array) {
         struct_components_.emplace_back(
             ir_->get_array_type(
-                ir_->get_primitive_type(tensor_type->get_element_type()), 0),
+                ir_->get_primitive_type(PrimitiveType::get(ret.dtype)),
+                ret.stride / data_type_size(PrimitiveType::get(ret.dtype))),
             "ret" + std::to_string(ret.index), ret.offset_in_mem);
       } else {
         struct_components_.emplace_back(
-            ir_->get_array_type(
-                ir_->get_primitive_type(PrimitiveType::get(ret.dtype)), 0),
+            ir_->get_primitive_type(PrimitiveType::get(ret.dtype)),
             "ret" + std::to_string(ret.index), ret.offset_in_mem);
       }
     }
